@@ -1,15 +1,41 @@
 #!/usr/bin/python3
+from selectolax.parser import HTMLParser
 import urllib.request
 import json
 import sys
 import os
-from selectolax.parser import HTMLParser
+import threading
+
+lock = threading.Lock()
+global vidsDict
+vidsDict = {}
 
 TMP_FILE_PATH = "/tmp/gitmanikytplayer.m4a"
 
+class fetchInfoThread(threading.Thread):
+	def __init__(self, ctr, url):
+		threading.Thread.__init__(self)
+		self.ctr = ctr
+		self.url = url
+	def run(self):
+		global vidsDict
+		info = self.getInfo(self.url)
+		if info != None:
+			lock.acquire()
+			vidsDict[self.ctr] = info
+			lock.release()
+
+	def getInfo(self, url):
+		noembedurl = "http://noembed.com/embed?url=" + url
+		response = urllib.request.urlopen(noembedurl).read()
+		info = json.loads(response.decode())
+		try:
+			return (url, info["title"], info["author_name"])
+		except KeyError as ke:
+			pass
+			# print("KeyError in getInfo:", url)
+
 def main():
-	clearTemp()
-	
 	sys.stderr.write("\x1b[2J\x1b[H\n")
 	resetLine()
 	print("Welcome to GitmanikYTPlayer!")
@@ -19,17 +45,20 @@ def main():
 		main()
 
 	vidsURLs = getURLs(query)
-	vidsDict = {}
-	counter = 1
 
+	threadList = []
+
+	ctr = 1
 	for href in vidsURLs:
-		g = getInfo("https://www.youtube.com" + href)
-		if g != None:
-			vidsDict[counter] = g
-			counter += 1
+		thread = fetchInfoThread(ctr, "https://www.youtube.com" + href)
+		thread.start()
+		threadList.append(thread)
+		ctr += 1
+
+	for t in threadList:
+		t.join()
 
 	printVids(vidsDict)
-
 	playing = None
 
 	while playing == None:
@@ -39,6 +68,7 @@ def main():
 			playing = None
 
 	print("Downloading", playing[1])
+	clearTemp()
 	os.system("youtube-dl -q -f 140 -o" + TMP_FILE_PATH + " " + playing[0])
 	print("Playing", playing[1], "\nTo stop playing press Ctrl+C")
 	os.system("ffplay -nodisp -autoexit " + TMP_FILE_PATH + " >/dev/null 2>&1")
@@ -46,7 +76,10 @@ def main():
 	main()
 
 def clearTemp():
-	os.remove(TMP_FILE_PATH)
+	try:
+		os.remove(TMP_FILE_PATH)
+	except FileNotFoundError:
+		pass
 
 def resetLine():
 	sys.stdout.write("\033[F") #Back to previous line
@@ -64,19 +97,8 @@ def selectNumber():
 
 
 def printVids(vidsDict):
-	for ctr, vid in vidsDict.items():
+	for ctr, vid in sorted(vidsDict.items()):
 		print(ctr, ":", vid[2], "-", vid[1])
-
-
-def getInfo(url):
-	noembedurl = "http://noembed.com/embed?url=" + url
-	response = urllib.request.urlopen(noembedurl).read()
-	info = json.loads(response.decode())
-	try:
-		return (url, info["title"], info["author_name"])
-	except KeyError as ke:
-		pass
-		# print("KeyError in getInfo:", url)
 
 def getURLs(query):
 	query = urllib.parse.quote(query)
@@ -88,4 +110,5 @@ def getURLs(query):
 			vids.append(candidate.attributes['href'])
 	return vids
 
-main()
+if __name__ == "__main__":
+	main()
