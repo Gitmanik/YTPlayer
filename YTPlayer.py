@@ -8,6 +8,8 @@ from selectolax.parser import HTMLParser
 TMP_FILE_PATH = "/tmp/gitmanikytplayer.m4a"
 
 def main():
+	clearTemp()
+	
 	sys.stderr.write("\x1b[2J\x1b[H\n")
 	resetLine()
 	print("Welcome to GitmanikYTPlayer!")
@@ -40,13 +42,15 @@ def main():
 	os.system("youtube-dl -q -f 140 -o" + TMP_FILE_PATH + " " + playing[0])
 	print("Playing", playing[1], "\nTo stop playing press Ctrl+C")
 	os.system("ffplay -nodisp -autoexit " + TMP_FILE_PATH + " >/dev/null 2>&1")
-	os.system("rm " + TMP_FILE_PATH)	
 
 	main()
 
+def clearTemp():
+	os.remove(TMP_FILE_PATH)
+
 def resetLine():
-	sys.stdout.write("\033[F") #back to previous line
-	sys.stdout.write("\033[K") #clear line
+	sys.stdout.write("\033[F") #Back to previous line
+	sys.stdout.write("\033[K") #Clear line
 
 def selectNumber():
 	selected = input("Which? (Q/q) to return: ")
